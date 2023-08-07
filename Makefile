@@ -10,6 +10,11 @@ LDFLAGS=-ledit
 SOURCES := $(wildcard $(SRCDIR)/*.c)
 OBJECTS := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SOURCES))
 
+.PHONY: clean all run
+
+run: $(EXECUTABLE)
+	./$(EXECUTABLE)
+
 all: $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
@@ -19,6 +24,5 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c
 	mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) $(LDFLAGS) -c $< -o $@
 
-.PHONY: clean
 clean:
 	rm -rf ./build
