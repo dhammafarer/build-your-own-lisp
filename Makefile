@@ -4,7 +4,8 @@ BUILDDIR = ./build
 SRCDIR = ./src
 EXECUTABLE = $(BUILDDIR)/lispy
 
-CFLAGS=-Wall -I$(SRCDIR)
+CFLAGS=-std=c99 -Wall -I$(SRCDIR)
+LDFLAGS=-ledit
 
 SOURCES := $(wildcard $(SRCDIR)/*.c)
 OBJECTS := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SOURCES))
@@ -12,11 +13,11 @@ OBJECTS := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SOURCES))
 all: $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c
 	mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) -c $< -o $@
 
 .PHONY: clean
 clean:
