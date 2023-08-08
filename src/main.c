@@ -1,60 +1,104 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <editline/readline.h>
 
 #include "mpc.h"
 
-#ifdef _WIN32
+typedef struct {
+    int type;
+    long num;
+    int err;
+} lval;
 
-static char input[2048];
+enum { LVAL_NUM, LVAL_ERR };
 
-/* Fake readline function */
-char *readline(char *prompt) {
-    fputs(prompt, stdout);
-    fgets(buffer, 2048, stdin);
-    char *cpy = malloc(strlen(buffer) + 1);
-    strcpy(cpy, buffer);
-    cpy[strlen(cpy) - 1] = '\0';
-    return cpy;
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+
+/* Create a new number type lval */
+lval lval_num(long x) {
+    lval v;
+    v.type = LVAL_NUM;
+    v.num = x;
+
+    return v;
 }
 
-/* Fake add_history function */
-void add_history(char *unused) {}
+/* Create a new error type lval */
+lval lval_err(int x) {
+    lval v;
+    v.type = LVAL_ERR;
+    v.err = x;
 
-#else
+    return v;
+}
 
-#include <editline/readline.h>
+void lval_print(lval v) {
+    switch (v.type) {
+    /* Print a number */
+    case LVAL_NUM:
+        printf("%li", v.num);
+        break;
 
-#endif
+    /* Print an error */
+    case LVAL_ERR:
+        if (v.err == LERR_DIV_ZERO)
+            printf("division by zero");
+        if (v.err == LERR_BAD_OP)
+            printf("Error: Invalid Operator!");
+        if (v.err == LERR_BAD_NUM)
+            printf("Error: Invalid Number!");
+        break;
+    }
+}
 
-/* Use operator strings to see which operation to perform */
-long eval_op(long x, char *op, long y) {
+/* Print an lval followed by a newline */
+void lval_println(lval v) {
+    lval_print(v);
+    putchar('\n');
+}
+
+lval eval_op(lval x, char *op, lval y) {
+    /* If either value is an error, return it */
+    if (x.type == LVAL_ERR) {
+        return x;
+    }
+    if (y.type == LVAL_ERR) {
+        return y;
+    }
+
+    /* Otherwise do maths on the number values */
     if (strcmp(op, "+") == 0) {
-        return x + y;
+        return lval_num(x.num + y.num);
     }
     if (strcmp(op, "-") == 0) {
-        return x - y;
+        return lval_num(x.num - y.num);
     }
     if (strcmp(op, "*") == 0) {
-        return x * y;
+        return lval_num(x.num * y.num);
     }
     if (strcmp(op, "/") == 0) {
-        return x / y;
+        /* If second operand is zero return error */
+        return y.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num / y.num);
     }
-    return 0;
+
+    return lval_err(LERR_BAD_OP);
 }
 
-long eval(mpc_ast_t *t) {
-
+lval eval(mpc_ast_t *t) {
     /* If tagged as number, return it directly. */
     if (strstr(t->tag, "number")) {
-        return atoi(t->contents);
+        errno = 0;
+        long x = strtol(t->contents, NULL, 10);
+
+        return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
     }
 
     /* The operator is always the second child */
     char *op = t->children[1]->contents;
 
     /* Store the third child in `x` */
-    long x = eval(t->children[2]);
+    lval x = eval(t->children[2]);
 
     /* Iterate the remaining children */
     int i = 3;
@@ -67,7 +111,6 @@ long eval(mpc_ast_t *t) {
 }
 
 int main(void) {
-
     mpc_parser_t *Number = mpc_new("number");
     mpc_parser_t *Operator = mpc_new("operator");
     mpc_parser_t *Expr = mpc_new("expr");
@@ -92,9 +135,8 @@ int main(void) {
 
         mpc_result_t r;
         if (mpc_parse("<stdin>", input, Lispy, &r)) {
-
-            long result = eval(r.output);
-            printf("%li\n", result);
+            lval result = eval(r.output);
+            lval_println(result);
             mpc_ast_delete(r.output);
         } else {
             mpc_err_print(r.error);
