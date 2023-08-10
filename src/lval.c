@@ -7,6 +7,9 @@
         return lval_err(err);                                                  \
     }
 
+#define LASSERT_EMPTY(args)                                                    \
+    LASSERT(args, args->count == 0, "Function called with empty list")
+
 /* Create a pointer to a new number type lval */
 lval *lval_num(long x) {
     lval *v = malloc(sizeof(lval));
@@ -252,7 +255,7 @@ lval *builtin_head(lval *a) {
     LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
             "Function 'head' passed incorrect types!");
 
-    LASSERT(a, a->cell[0]->count != 0, "Function 'head' passed empty list!");
+    LASSERT_EMPTY(a);
 
     /* Take first argument */
     lval *v = lval_take(a, 0);
@@ -271,7 +274,7 @@ lval *builtin_tail(lval *a) {
     LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
             "Function 'tail' passed incorrect types!");
 
-    LASSERT(a, a->cell[0]->count != 0, "Function 'tail' passed empty list!");
+    LASSERT_EMPTY(a);
 
     /* Otherwise take first argument */
     lval *v = lval_take(a, 0);
