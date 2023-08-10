@@ -12,7 +12,7 @@ typedef struct lval {
     struct lval **cell;
 } lval;
 
-enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_SEXPR };
+enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR };
 
 enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
 
@@ -21,6 +21,7 @@ lval *lval_num(long x);
 lval *lval_err(char *m);
 lval *lval_sym(char *s);
 lval *lval_sexpr(void);
+lval *lval_qexpr(void);
 
 void lval_del(lval *v);
 
