@@ -8,7 +8,7 @@
     }
 
 #define LASSERT_EMPTY(args)                                                    \
-    LASSERT(args, args->count == 0, "Function called with empty list")
+    LASSERT(args, args->count != 0, "Function called with empty list")
 
 /* Create a pointer to a new number type lval */
 lval *lval_num(long x) {
@@ -285,6 +285,23 @@ lval *builtin_tail(lval *a) {
     return v;
 }
 
+lval *builtin_cons(lval *a) {
+    LASSERT_EMPTY(a);
+    LASSERT(a, a->count == 2, "Function 'cons' requires 2 arguments!");
+
+    LASSERT(a, a->cell[1]->type == LVAL_QEXPR,
+            "Second argument to cons must be a list");
+
+    /* Take the first element from Qexpr */
+
+    lval *x = lval_qexpr();
+    lval_add(x, lval_pop(a, 0));
+    lval *y = lval_pop(a, 0);
+    lval_del(a);
+
+    return lval_join(x, y);
+}
+
 lval *builtin_list(lval *a) {
     a->type = LVAL_QEXPR;
     return a;
@@ -383,6 +400,9 @@ lval *builtin(lval *a, char *func) {
     }
     if (strcmp("tail", func) == 0) {
         return builtin_tail(a);
+    }
+    if (strcmp("cons", func) == 0) {
+        return builtin_cons(a);
     }
     if (strcmp("join", func) == 0) {
         return builtin_join(a);
