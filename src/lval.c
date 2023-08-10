@@ -10,7 +10,6 @@
 #define LASSERT_EMPTY(args)                                                    \
     LASSERT(args, args->count != 0, "Function called with empty list")
 
-/* Create a pointer to a new number type lval */
 lval *lval_num(long x) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_NUM;
@@ -19,7 +18,6 @@ lval *lval_num(long x) {
     return v;
 }
 
-/* Create a pointer to a new error type lval */
 lval *lval_err(char *m) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_ERR;
@@ -29,7 +27,6 @@ lval *lval_err(char *m) {
     return v;
 }
 
-/* Construct a pointer to a new Symbol lval */
 lval *lval_sym(char *s) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_SYM;
@@ -39,7 +36,14 @@ lval *lval_sym(char *s) {
     return v;
 }
 
-/* Contruct a pointer to a new Sexpr lval */
+lval *lval_fun(lbuiltin func) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_FUN;
+    v->func = func;
+
+    return v;
+}
+
 lval *lval_sexpr(void) {
     lval *v = malloc(sizeof(lval));
 
@@ -71,6 +75,9 @@ void lval_del(lval *v) {
         break;
     case LVAL_SYM:
         free(v->sym);
+        break;
+
+    case LVAL_FUN:
         break;
 
     /* If Qexpr or Sexpr then delete all elements inside */
@@ -137,10 +144,53 @@ lval *lval_read(mpc_ast_t *t) {
     return x;
 }
 
+lval *lval_copy(lval *v) {
+    lval *x = malloc(sizeof(lval));
+    x->type = v->type;
+
+    switch (v->type) {
+        /* Copy Functions and Numbers directly */
+    case LVAL_FUN:
+        x->func = v->func;
+        break;
+    case LVAL_NUM:
+        x->num = v->num;
+        break;
+
+    /* Copy Strings using malloc and strcpy */
+    case LVAL_ERR:
+        x->err = malloc(strlen(v->err) + 1);
+        strcpy(x->err, v->err);
+        break;
+
+    case LVAL_SYM:
+        x->sym = malloc(strlen(v->sym) + 1);
+        strcpy(x->sym, v->sym);
+        break;
+
+    /* Copy lists by copying each sub-expression */
+    case LVAL_QEXPR:
+    case LVAL_SEXPR:
+        x->count = v->count;
+        x->cell = malloc(sizeof(lval *) * v->count);
+
+        for (int i = 0; i < v->count; i++) {
+            x->cell[i] = lval_copy(v->cell[i]);
+        }
+        break;
+    }
+
+    return x;
+}
+
 void lval_print(lval *v) {
     switch (v->type) {
     case LVAL_NUM:
         printf("%li", v->num);
+        break;
+
+    case LVAL_FUN:
+        printf("<function>");
         break;
 
     case LVAL_ERR:
@@ -415,4 +465,59 @@ lval *builtin(lval *a, char *func) {
     }
     lval_del(a);
     return lval_err("Unknown Function!");
+}
+
+lenv *lenv_new(void) {
+    lenv *e = malloc(sizeof(lenv));
+    e->count = 0;
+    e->syms = NULL;
+    e->vals = NULL;
+
+    return e;
+}
+
+void lenv_del(lenv *e) {
+    for (int i = 0; i < e->count; i++) {
+        free(e->syms[i]);
+        lval_del(e->vals[i]);
+    }
+
+    free(e->syms);
+    free(e->vals);
+    free(e);
+}
+
+lval *lenv_get(lenv *e, lval *k) {
+    for (int i = 0; i < e->count; i++) {
+        if (strcmp(e->syms[i], k->sym) == 0) {
+            return lval_copy(e->vals[i]);
+        }
+    }
+
+    return lval_err("unbound symbol!");
+}
+
+void lenv_put(lenv *e, lval *k, lval *v) {
+    /* Iterate over all items in environment */
+    /* This is to see if variable already exists */
+    for (int i = 0; i < e->count; i++) {
+
+        /* If variable is found, delete item at that position*/
+        /* Replace with variable supplied by user */
+        if (strcmp(e->syms[i], k->sym) == 0) {
+            lval_del(e->vals[i]);
+            e->vals[i] = lval_copy(v);
+            return;
+        }
+    }
+
+    /* If no existing entry found, allocate space for new entry */
+    e->count++;
+    e->vals = realloc(e->vals, sizeof(lval *) * e->count);
+    e->syms = realloc(e->syms, sizeof(char *) * e->count);
+
+    /* Copy contents of lval and symbol string into new location */
+    e->vals[e->count - 1] = lval_copy(v);
+    e->syms[e->count - 1] = malloc(strlen(k->sym) + 1);
+    strcpy(e->syms[e->count - 1], k->sym);
 }

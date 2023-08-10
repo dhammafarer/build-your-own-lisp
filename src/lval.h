@@ -2,20 +2,34 @@
 
 #include "mpc.h"
 
+struct lval;
+struct lenv;
+typedef struct lval lval;
+typedef struct lenv lenv;
+
+enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_FUN, LVAL_SEXPR, LVAL_QEXPR };
+
+typedef lval *(*lbuiltin)(lenv *, lval *);
+
 typedef struct lval {
     int type;
+
     long num;
     char *err;
     char *sym;
-    /* Count and Pointer to alist of lval */
+    lbuiltin func;
+
     int count;
     struct lval **cell;
 } lval;
 
-enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR };
+struct lenv {
+    int count;
+    char **syms;
+    lval **vals;
+};
 
 enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
-
 
 lval *lval_num(long x);
 lval *lval_err(char *m);
