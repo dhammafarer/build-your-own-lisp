@@ -23,6 +23,7 @@ lval *builtin_tail(lenv *e, lval *a);
 lval *builtin_list(lenv *e, lval *a);
 lval *builtin_eval(lenv *e, lval *a);
 lval *builtin_join(lenv *e, lval *a);
+lval *builtin_def(lenv *e, lval *a);
 
 lval *builtin(lenv *e, lval *a, char *func);
 
@@ -426,21 +427,13 @@ lval *lval_join(lval *x, lval *y) {
     return x;
 }
 
-lval *builtin_add(lenv *e, lval *a) {
-    return builtin_op(e, a, "+");
-}
+lval *builtin_add(lenv *e, lval *a) { return builtin_op(e, a, "+"); }
 
-lval *builtin_sub(lenv *e, lval *a) {
-    return builtin_op(e, a, "-");
-}
+lval *builtin_sub(lenv *e, lval *a) { return builtin_op(e, a, "-"); }
 
-lval *builtin_mul(lenv *e, lval *a) {
-    return builtin_op(e, a, "*");
-}
+lval *builtin_mul(lenv *e, lval *a) { return builtin_op(e, a, "*"); }
 
-lval *builtin_div(lenv *e, lval *a) {
-    return builtin_op(e, a, "/");
-}
+lval *builtin_div(lenv *e, lval *a) { return builtin_op(e, a, "/"); }
 
 lval *builtin_op(lenv *e, lval *a, char *op) {
     /* Ensure all arguments are numbers */
@@ -559,10 +552,39 @@ void lenv_add_builtins(lenv *e) {
     lenv_add_builtin(e, "cons", builtin_cons);
     lenv_add_builtin(e, "eval", builtin_eval);
     lenv_add_builtin(e, "join", builtin_join);
+    lenv_add_builtin(e, "def", builtin_def);
 
     /* Math Functions */
     lenv_add_builtin(e, "+", builtin_add);
     lenv_add_builtin(e, "-", builtin_sub);
     lenv_add_builtin(e, "*", builtin_mul);
     lenv_add_builtin(e, "/", builtin_div);
+}
+
+lval *builtin_def(lenv *e, lval *a) {
+    LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
+            "Function 'def' passed incorrect type");
+
+    /* First argument is symbol list */
+    lval *syms = a->cell[0];
+
+    /* Ensure all elements of first list are symbols */
+    for (int i = 0; i < syms->count; i++) {
+        LASSERT(a, syms->cell[i]->type == LVAL_SYM,
+                "Function 'def' cannot define non-symbol");
+    }
+
+    /* Check correct number of symbols and values */
+    LASSERT(
+        a, syms->count == a->count - 1,
+        "Function 'def' cannot define incorrect number of values to symbols");
+
+    /* Assign copies of values to symbols */
+    for (int i = 0; i < syms->count; i++) {
+        lenv_put(e, syms->cell[i], a->cell[i+1]);
+    }
+
+    lval_del(a);
+
+    return lval_sexpr();
 }
