@@ -27,6 +27,9 @@ int main(void) {
     puts("Lispy Version 0.0.1");
     puts("Press Ctrl+c to exit");
 
+    lenv *e = lenv_new();
+    lenv_add_builtins(e);
+
     while (1) {
 
         char *input = readline("lispy> ");
@@ -35,7 +38,7 @@ int main(void) {
 
         mpc_result_t r;
         if (mpc_parse("<stdin>", input, Lispy, &r)) {
-            lval *x = lval_eval(lval_read(r.output));
+            lval *x = lval_eval(e, lval_read(r.output));
             lval_println(x);
             lval_del(x);
         } else {
@@ -45,6 +48,8 @@ int main(void) {
 
         free(input);
     }
+
+    lenv_del(e);
 
     mpc_cleanup(6, Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
 
