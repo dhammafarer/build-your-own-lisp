@@ -11,19 +11,27 @@ enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_FUN, LVAL_SEXPR, LVAL_QEXPR };
 
 typedef lval *(*lbuiltin)(lenv *, lval *);
 
-typedef struct lval {
+struct lval {
     int type;
 
+    /* Basic */
     long num;
     char *err;
     char *sym;
-    lbuiltin fun;
 
+    /* Function */
+    lbuiltin builtin;
+    lenv *env;
+    lval * formals;
+    lval * body;
+
+    /* Expression */
     int count;
     struct lval **cell;
-} lval;
+};
 
 struct lenv {
+    lenv *par;
     int count;
     char **syms;
     lval **vals;
