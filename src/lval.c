@@ -19,6 +19,7 @@ void lval_expr_print(lval *v, char open, char close);
 
 lval *lval_take(lval *v, int i);
 lval *lval_pop(lval *v, int i);
+lval *lval_call(lenv *e, lval *f, lval *a);
 
 char *ltype_name(int t);
 
@@ -352,13 +353,16 @@ lval *lval_eval_sexpr(lenv *e, lval *v) {
     /* Ensure first element is a function after evaluation */
     lval *f = lval_pop(v, 0);
     if (f->type != LVAL_FUN) {
+        lval *err = lval_err("S-Expression starts with incorrect type. "
+                             "Got %s, expected %s. ",
+                             ltype_name(f->type), ltype_name(LVAL_FUN));
         lval_del(v);
         lval_del(f);
-        return lval_err("First element is nota function.");
+        return err;
     }
 
     /* If so, call function to get result */
-    lval *result = f->builtin(e, v);
+    lval *result = lval_call(e, f, v);
     lval_del(f);
     return result;
 }
@@ -801,20 +805,20 @@ lval *lval_call(lenv *e, lval *f, lval *a) {
                             "Got %i, expected %i.",
                             given, total);
         }
+
+        /* Pop the first symbol from the formals */
+        lval *sym = lval_pop(f->formals, 0);
+
+        /* Pop the next argument from the list */
+        lval *val = lval_pop(a, 0);
+
+        /* Bind  copy into the function's environment */
+        lenv_put(f->env, sym, val);
+
+        /* Delete symbol and value */
+        lval_del(sym);
+        lval_del(val);
     }
-
-    /* Pop the first symbol from the formals */
-    lval *sym = lval_pop(f->formals, 0);
-
-    /* Pop the next argument from the list */
-    lval *val = lval_pop(a, 0);
-
-    /* Bind  copy into the function's environment */
-    lenv_put(f->env, sym, val);
-
-    /* Delete symbol and value */
-    lval_del(sym);
-    lval_del(val);
 
     /* Argument list is now bound, so can be cleaned up */
     lval_del(a);
