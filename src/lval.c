@@ -1,5 +1,5 @@
 #include "lval.h"
-#include <asm-generic/errno.h>
+#include "mpc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,12 +11,16 @@ lval *lval_sym(char *s);
 lval *lval_sexpr(void);
 lval *lval_qexpr(void);
 lval *lval_lambda(lval *formals, lval *body);
+lval *lval_str(char *s);
 
 lval *lval_read_num(mpc_ast_t *t);
+lval *lval_read_str(mpc_ast_t *t);
+
 lval *lval_add(lval *v, lval *x);
 lval *lval_join(lval *x, lval *y);
 
 void lval_print(lval *v);
+void lval_print_str(lval *v);
 void lval_expr_print(lval *v, char open, char close);
 
 lval *lval_take(lval *v, int i);
@@ -172,6 +176,10 @@ void lval_del(lval *v) {
         free(v->sym);
         break;
 
+    case LVAL_STR:
+        free(v->str);
+        break;
+
     case LVAL_FUN:
         if (!v->builtin) {
             lenv_del(v->env);
@@ -197,6 +205,26 @@ lval *lval_read_num(mpc_ast_t *t) {
     return errno != ERANGE ? lval_num(x) : lval_err("Invalid Number");
 }
 
+lval *lval_read_str(mpc_ast_t *t) {
+    /* Cut off the final quote character */
+    t->contents[strlen(t->contents) - 1] = '\0';
+
+    /* Copy the string without the first quote character */
+    char *unescaped = malloc(strlen(t->contents + 1) + 1);
+    strcpy(unescaped, t->contents + 1);
+
+    /* Pass through the unescape function */
+    unescaped = mpcf_unescape(unescaped);
+
+    /* Construct a new lval using the string */
+    lval *str = lval_str(unescaped);
+
+    /* Free the string and return */
+    free(unescaped);
+
+    return str;
+}
+
 lval *lval_add(lval *v, lval *x) {
     v->count++;
     v->cell = realloc(v->cell, sizeof(lval *) * v->count);
@@ -211,6 +239,8 @@ lval *lval_read(mpc_ast_t *t) {
         return lval_read_num(t);
     if (strstr(t->tag, "symbol"))
         return lval_sym(t->contents);
+    if (strstr(t->tag, "string"))
+        return lval_read_str(t);
 
     /* If root (>) or sexpr then create empty list */
     lval *x = NULL;
@@ -264,6 +294,10 @@ lval *lval_copy(lval *v) {
         x->num = v->num;
         break;
 
+    case LVAL_STR:
+        x->str = malloc(strlen(v->str) + 1);
+        strcpy(x->str, v->str);
+
     /* Copy Strings using malloc and strcpy */
     case LVAL_ERR:
         x->err = malloc(strlen(v->err) + 1);
@@ -314,6 +348,11 @@ void lval_print(lval *v) {
     case LVAL_SYM:
         printf("%s", v->sym);
         break;
+
+    case LVAL_STR:
+        lval_print_str(v);
+        break;
+
     case LVAL_SEXPR:
         lval_expr_print(v, '(', ')');
         break;
@@ -774,6 +813,8 @@ char *ltype_name(int t) {
         return "Number";
     case LVAL_SYM:
         return "Symbol";
+    case LVAL_STR:
+        return "String";
     case LVAL_ERR:
         return "Error";
     case LVAL_QEXPR:
@@ -942,11 +983,17 @@ int lval_eq(lval *x, lval *y) {
     switch (x->type) {
     case LVAL_NUM:
         return (x->num == y->num);
+
     /* Compare string values */
     case LVAL_ERR:
-        return (strcmp(x->err, y->err));
+        return (strcmp(x->err, y->err) == 0);
+
     case LVAL_SYM:
-        return (strcmp(x->sym, y->sym));
+        return (strcmp(x->sym, y->sym) == 0);
+
+    case LVAL_STR:
+        return (strcmp(x->str, y->str) == 0);
+
     /* If builtin compare, otherwise compare formals and body */
     case LVAL_FUN:
         if (x->builtin || y->builtin) {
@@ -969,7 +1016,7 @@ int lval_eq(lval *x, lval *y) {
         }
         /* Otherwise lists must be equal */
         return 1;
-    break;
+        break;
     }
 
     return 0;
@@ -992,13 +1039,9 @@ lval *builtin_cmp(lenv *e, lval *a, char *op) {
     return lval_num(r);
 }
 
-lval *builtin_eq(lenv *e, lval *a) {
-    return builtin_cmp(e, a, "==");
-}
+lval *builtin_eq(lenv *e, lval *a) { return builtin_cmp(e, a, "=="); }
 
-lval *builtin_ne(lenv *e, lval *a) {
-    return builtin_cmp(e, a, "!=");
-}
+lval *builtin_ne(lenv *e, lval *a) { return builtin_cmp(e, a, "!="); }
 
 lval *builtin_if(lenv *e, lval *a) {
     LASSERT_NUM("if", a, 3);
@@ -1021,4 +1064,28 @@ lval *builtin_if(lenv *e, lval *a) {
     lval_del(a);
 
     return x;
+}
+
+lval *lval_str(char *s) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_STR;
+    v->str = malloc(strlen(s) + 1);
+    strcpy(v->str, s);
+
+    return v;
+}
+
+void lval_print_str(lval *v) {
+    /* Make a copy of the string */
+    char *escaped = malloc(strlen(v->str) + 1);
+    strcpy(escaped, v->str);
+
+    /* Pass it through the escape function */
+    escaped = mpcf_escape(escaped);
+
+    /* Print it between " characters" */
+    printf("\"%s\"", escaped);
+
+    /* Free the copied string */
+    free(escaped);
 }
