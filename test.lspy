@@ -1,0 +1,3 @@
+(def {fun} (\ {args body} {def (head args) (\ (tail args) body)}))
+(fun {add-together x y} {+ x y})
+(print (add-together 1 2))
